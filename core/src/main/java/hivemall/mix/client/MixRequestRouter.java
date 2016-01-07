@@ -19,44 +19,36 @@
 package hivemall.mix.client;
 
 import hivemall.mix.MixEnv;
+import hivemall.mix.MixException;
 import hivemall.mix.MixMessage;
 import hivemall.mix.NodeInfo;
 import hivemall.utils.net.NetUtils;
 
 import java.net.InetSocketAddress;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+
 public class MixRequestRouter {
+    
+    @Nonnull
     private final String connectInfo;
 
     // Filled from 'connectInfo' in initialize()
     private NodeInfo[] nodes;
 
-    public MixRequestRouter(String connectInfo) {
+    public MixRequestRouter(@CheckForNull String connectInfo) {
+        if(connectInfo == null) {
+            throw new IllegalArgumentException("connectInfo is null");
+        }
         this.connectInfo = connectInfo;
     }
 
-    public void initialize() throws Exception {
+    public void initialize() throws MixException {
         this.nodes = parseMixServerList(toMixServerList(connectInfo));
     }
-
-    private static NodeInfo[] parseMixServerList(String connectInfo) {
-         if(connectInfo == null) {
-            throw new IllegalArgumentException();
-        }
-        String[] endpoints = connectInfo.split("\\s*,\\s*");
-        final int numEndpoints = endpoints.length;
-        if(numEndpoints < 1) {
-            throw new IllegalArgumentException("Invalid connectInfo: " + connectInfo);
-        }
-        NodeInfo[] nodes = new NodeInfo[numEndpoints];
-        for(int i = 0; i < numEndpoints; i++) {
-            InetSocketAddress addr = NetUtils.getInetSocketAddress(endpoints[i], MixEnv.MIXSERV_DEFAULT_PORT);
-            nodes[i] = new NodeInfo(addr);
-        }
-        return nodes;
-    }
-
-    protected String toMixServerList(String connectInfo) {
+    
+    protected String toMixServerList(String connectInfo) throws MixException {
         return connectInfo;
     }
 
@@ -72,4 +64,17 @@ public class MixRequestRouter {
         return nodes[index];
     }
 
+    private static NodeInfo[] parseMixServerList(@Nonnull String connectInfo) throws MixException {
+        String[] endpoints = connectInfo.split("\\s*,\\s*");
+        final int numEndpoints = endpoints.length;
+        if(numEndpoints < 1) {
+            throw new MixException("Invalid connectInfo: " + connectInfo);
+        }
+        NodeInfo[] nodes = new NodeInfo[numEndpoints];
+        for(int i = 0; i < numEndpoints; i++) {
+            InetSocketAddress addr = NetUtils.getInetSocketAddress(endpoints[i], MixEnv.MIXSERV_DEFAULT_PORT);
+            nodes[i] = new NodeInfo(addr);
+        }
+        return nodes;
+    }
 }
