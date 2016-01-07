@@ -28,8 +28,7 @@ public final class MixRequest {
     }
 
     public MixRequest(int numRequest) {
-        this.count = numRequest;
-        this.allocatedURIs = null;
+        this(numRequest, null);
     }
 
     public MixRequest(int numAssigned, String URIs) {
