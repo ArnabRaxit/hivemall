@@ -45,10 +45,11 @@ public class MixRequestRouter {
     }
 
     public void initialize() throws MixException {
-        this.nodes = parseMixServerList(toMixServerList(connectInfo));
+        String serverList = toMixServerList(connectInfo);
+        this.nodes = parseMixServerList(serverList);
     }
 
-    protected String toMixServerList(String connectInfo) throws MixException {
+    protected String toMixServerList(@Nonnull String connectInfo) throws MixException {
         return connectInfo;
     }
 
@@ -56,7 +57,7 @@ public class MixRequestRouter {
         return nodes;
     }
 
-    public NodeInfo selectNode(MixMessage msg) {
+    public NodeInfo selectNode(@Nonnull MixMessage msg) {
         assert (msg != null);
         Object feature = msg.getFeature();
         int hashcode = feature.hashCode();
