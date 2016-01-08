@@ -18,26 +18,26 @@
  */
 package hivemall.mix.yarn.server;
 
+import hivemall.mix.server.MixServer;
+import hivemall.mix.yarn.MixYarnEnv;
+import hivemall.mix.yarn.network.Heartbeat;
+import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReporter;
+import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReporterInitializer;
+import hivemall.mix.yarn.network.NettyUtils;
+import hivemall.utils.lang.CommandLineUtils;
+import io.netty.channel.Channel;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
-import hivemall.mix.yarn.network.Heartbeat;
-import io.netty.channel.Channel;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import hivemall.mix.server.MixServer;
-import hivemall.mix.yarn.MixYarnEnv;
-import hivemall.mix.yarn.network.NettyUtils;
-import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReporter;
-import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReporterInitializer;
-import hivemall.utils.lang.CommandLineUtils;
 
 public final class MixYarnServer extends MixServer {
     private static final Log logger = LogFactory.getLog(MixYarnServer.class);
@@ -59,13 +59,13 @@ public final class MixYarnServer extends MixServer {
         Future<?> f = mixServExec.submit(mixServ);
 
         // Wait until MixServer gets ready
-        while(true) {
+        while (true) {
             try {
                 Thread.sleep(500L);
-            } catch(InterruptedException e) {
+            } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            if(mixServ.getState() == ServerState.RUNNING) {
+            if (mixServ.getState() == ServerState.RUNNING) {
                 break;
             }
         }
@@ -74,12 +74,14 @@ public final class MixYarnServer extends MixServer {
         final AtomicLong lastAmHeartbeatReceived = new AtomicLong(System.currentTimeMillis());
         final String host = NettyUtils.getHostAddress();
         final int port = mixServ.getBoundPort();
-        final HeartbeatReporter msgHandler = new HeartbeatReporter(containerId, host, port, lastAmHeartbeatReceived);
+        final HeartbeatReporter msgHandler = new HeartbeatReporter(containerId, host, port,
+            lastAmHeartbeatReceived);
         final EventLoopGroup workers = new NioEventLoopGroup();
         Channel ch = null;
         try {
-            ch = NettyUtils.startNettyClient(new HeartbeatReporterInitializer(msgHandler), appMasterHost, MixYarnEnv.REPORT_RECEIVER_PORT, workers);
-        } catch(InterruptedException e) {
+            ch = NettyUtils.startNettyClient(new HeartbeatReporterInitializer(msgHandler),
+                appMasterHost, MixYarnEnv.REPORT_RECEIVER_PORT, workers);
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
@@ -90,16 +92,16 @@ public final class MixYarnServer extends MixServer {
 
         try {
             // Break if AM channel disconnected
-            while(true) {
+            while (true) {
                 final long elapsed = System.currentTimeMillis() - lastAmHeartbeatReceived.get();
-                if(!ch.isActive() || elapsed > MixYarnEnv.MIXSERVER_HEARTBEAT_TIMEOUT * 1000) {
-                    logger.warn("Channel to AM (host=" + appMasterHost
-                            + ", port=" + MixYarnEnv.REPORT_RECEIVER_PORT + ") disconnected");
+                if (!ch.isActive() || elapsed > MixYarnEnv.MIXSERVER_HEARTBEAT_TIMEOUT * 1000) {
+                    logger.warn("Channel to AM (host=" + appMasterHost + ", port="
+                            + MixYarnEnv.REPORT_RECEIVER_PORT + ") disconnected");
                     break;
                 }
                 Thread.sleep(30 * 1000L);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
             workers.shutdownGracefully();

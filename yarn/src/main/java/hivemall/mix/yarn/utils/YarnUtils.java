@@ -49,10 +49,10 @@ public final class YarnUtils {
         classPaths.append(ApplicationConstants.CLASS_PATH_SEPARATOR);
     }
 
-    public static void copyFromLocalFile(FileSystem fs, Path src, Path dst, Map<String, LocalResource> resourceMap)
-            throws IOException {
+    public static void copyFromLocalFile(FileSystem fs, Path src, Path dst,
+            Map<String, LocalResource> resourceMap) throws IOException {
         fs.copyFromLocalFile(src, dst);
-        if(resourceMap != null) {
+        if (resourceMap != null) {
             resourceMap.put(dst.getName(), YarnUtils.createLocalResource(fs, dst));
         }
     }

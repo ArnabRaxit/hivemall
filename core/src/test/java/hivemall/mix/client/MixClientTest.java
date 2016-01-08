@@ -18,29 +18,34 @@
  */
 package hivemall.mix.client;
 
-import java.lang.reflect.Field;
-
-import org.junit.Assert;
-import org.junit.Test;
-
 import hivemall.io.DenseModel;
 import hivemall.mix.MixMessage.MixEventName;
 import hivemall.mix.MixedModel;
 import hivemall.mix.yarn.client.MixYarnRequestRouter;
+
+import java.lang.reflect.Field;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 public class MixClientTest {
     private static final MixedModel dummyModel = new DenseModel(1024);
 
     @Test
     public void testMixClient() throws Exception {
-        Assert.assertTrue(createMixRouter("yarn://127.0.0.1").getClass().isAssignableFrom(MixYarnRequestRouter.class));
-        Assert.assertTrue(createMixRouter("yarn://localhost").getClass().isAssignableFrom(MixYarnRequestRouter.class));
-        Assert.assertTrue(createMixRouter("127.0.0.1").getClass().isAssignableFrom(MixRequestRouter.class));
-        Assert.assertTrue(createMixRouter("localhost").getClass().isAssignableFrom(MixRequestRouter.class));
+        Assert.assertTrue(createMixRouter("yarn://127.0.0.1").getClass().isAssignableFrom(
+            MixYarnRequestRouter.class));
+        Assert.assertTrue(createMixRouter("yarn://localhost").getClass().isAssignableFrom(
+            MixYarnRequestRouter.class));
+        Assert.assertTrue(createMixRouter("127.0.0.1").getClass().isAssignableFrom(
+            MixRequestRouter.class));
+        Assert.assertTrue(createMixRouter("localhost").getClass().isAssignableFrom(
+            MixRequestRouter.class));
     }
 
     static MixRequestRouter createMixRouter(String connectInfo) throws Exception {
-        MixClient client = new MixClient(MixEventName.average, "dummyId", connectInfo, false, 3, dummyModel);
+        MixClient client = new MixClient(MixEventName.average, "dummyId", connectInfo, false, 3,
+            dummyModel);
         Field mixYarnRouterField = MixClient.class.getDeclaredField("router");
         mixYarnRouterField.setAccessible(true);
         return (MixRequestRouter) mixYarnRouterField.get(client);

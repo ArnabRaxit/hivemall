@@ -35,11 +35,13 @@ public final class WorkerCommandBuilder {
 
     private String javaHome;
 
-    public WorkerCommandBuilder(Class<?> mainClass, String extraClassPath, int memoryMb, List<String> arguments, List<String> javaOps) {
+    public WorkerCommandBuilder(Class<?> mainClass, String extraClassPath, int memoryMb,
+            List<String> arguments, List<String> javaOps) {
         this(mainClass.getName(), extraClassPath, memoryMb, arguments, javaOps);
     }
 
-    public WorkerCommandBuilder(String mainClass, String extraClassPath, int memoryMb, List<String> arguments, List<String> javaOps) {
+    public WorkerCommandBuilder(String mainClass, String extraClassPath, int memoryMb,
+            List<String> arguments, List<String> javaOps) {
         this.mainClass = mainClass;
         this.extraClassPath = extraClassPath;
         this.memoryMb = memoryMb;
@@ -54,11 +56,11 @@ public final class WorkerCommandBuilder {
     public List<String> buildCommand() throws IOException {
         final List<String> command = new ArrayList<String>();
         String envJavaHome;
-        if(javaHome != null) {
+        if (javaHome != null) {
             envJavaHome = javaHome;
         } else {
             envJavaHome = System.getenv("JAVA_HOME");
-            if(envJavaHome == null) {
+            if (envJavaHome == null) {
                 envJavaHome = System.getProperty("java.home");
             }
         }
@@ -66,11 +68,11 @@ public final class WorkerCommandBuilder {
         command.add("-cp");
         command.add(join(File.pathSeparator, buildClassPath(extraClassPath)));
         command.addAll(Arrays.asList("-Xms" + memoryMb + "m", "-Xmx" + memoryMb + "m"));
-        if(javaOps != null) {
+        if (javaOps != null) {
             command.addAll(javaOps);
         }
         command.add(mainClass);
-        if(arguments != null) {
+        if (arguments != null) {
             command.addAll(arguments);
         }
         return command;
@@ -83,9 +85,9 @@ public final class WorkerCommandBuilder {
 
     private static String join(String sep, Iterable<String> elements) {
         StringBuilder sb = new StringBuilder();
-        for(String e : elements) {
-            if(e != null) {
-                if(sb.length() > 0) {
+        for (String e : elements) {
+            if (e != null) {
+                if (sb.length() > 0) {
                     sb.append(sep);
                 }
                 sb.append(e);
@@ -104,13 +106,13 @@ public final class WorkerCommandBuilder {
 
     // Add entries to the classpath
     private void addToClassPath(List<String> cp, String entries) {
-        if(entries == null || entries.isEmpty()) {
+        if (entries == null || entries.isEmpty()) {
             return;
         }
         String[] split = entries.split(Pattern.quote(File.pathSeparator));
-        for(String e : split) {
-            if(e != null && !e.isEmpty()) {
-                if(new File(e).isDirectory() && !e.endsWith(File.separator)) {
+        for (String e : split) {
+            if (e != null && !e.isEmpty()) {
+                if (new File(e).isDirectory() && !e.endsWith(File.separator)) {
                     e += File.separator;
                 }
             }

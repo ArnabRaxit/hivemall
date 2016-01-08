@@ -18,10 +18,6 @@
  */
 package hivemall.mix.yarn.network;
 
-import java.io.UnsupportedEncodingException;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -31,6 +27,10 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
+
+import java.io.UnsupportedEncodingException;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class MixRequestClientHandler {
 
@@ -96,7 +96,7 @@ public final class MixRequestClientHandler {
 
     public static void writeString(final String s, final ByteBuf buf)
             throws UnsupportedEncodingException {
-        if(s == null) {
+        if (s == null) {
             buf.writeInt(-1);
             return;
         }
@@ -107,14 +107,14 @@ public final class MixRequestClientHandler {
 
     public static String readString(final ByteBuf in) {
         int length = in.readInt();
-        if(length == -1) {
+        if (length == -1) {
             return null;
         }
         byte[] b = new byte[length];
         in.readBytes(b, 0, length);
         try {
             return new String(b, "utf-8");
-        } catch(UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             return null;
         }
     }

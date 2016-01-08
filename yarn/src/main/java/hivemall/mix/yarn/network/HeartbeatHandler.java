@@ -18,9 +18,8 @@
  */
 package hivemall.mix.yarn.network;
 
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
-
+import hivemall.mix.yarn.MixYarnEnv;
+import hivemall.mix.yarn.utils.TimestampedValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -33,12 +32,13 @@ import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.yarn.api.records.NodeId;
-
-import hivemall.mix.yarn.MixYarnEnv;
-import hivemall.mix.yarn.utils.TimestampedValue;
 
 public final class HeartbeatHandler {
     private static final Log logger = LogFactory.getLog(HeartbeatHandler.class);
@@ -57,7 +57,7 @@ public final class HeartbeatHandler {
             logger.info(msg);
             final String containerId = msg.getConainerId();
             final NodeId node = NodeId.newInstance(msg.getHost(), msg.getPort());
-            if(activeMixServers.replace(containerId, new TimestampedValue<NodeId>(node)) == null) {
+            if (activeMixServers.replace(containerId, new TimestampedValue<NodeId>(node)) == null) {
                 // If the value does not exist, the MIX server
                 // already has gone.
                 activeMixServers.remove(containerId);
@@ -68,7 +68,8 @@ public final class HeartbeatHandler {
         }
     }
 
-    public final static class HeartbeatReceiverInitializer extends ChannelInitializer<SocketChannel> {
+    public final static class HeartbeatReceiverInitializer extends
+            ChannelInitializer<SocketChannel> {
 
         private final HeartbeatReceiver handler;
 
@@ -91,7 +92,7 @@ public final class HeartbeatHandler {
         private final AtomicLong lastReceived;
 
         public HeartbeatReporter(String containerId, String host, int port, AtomicLong lastReceived) {
-            this.heartbeatMsg = new Heartbeat(containerId, host ,port);
+            this.heartbeatMsg = new Heartbeat(containerId, host, port);
             this.lastReceived = lastReceived;
         }
 
@@ -103,18 +104,19 @@ public final class HeartbeatHandler {
 
         @Override
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-            if(evt instanceof IdleStateEvent) {
+            if (evt instanceof IdleStateEvent) {
                 try {
                     assert ((IdleStateEvent) evt).state() == IdleState.WRITER_IDLE;
                     ctx.writeAndFlush(heartbeatMsg).sync();
-                } catch(Exception e) {
+                } catch (Exception e) {
                     ctx.close();
                 }
             }
         }
     }
 
-    public final static class HeartbeatReporterInitializer extends ChannelInitializer<SocketChannel> {
+    public final static class HeartbeatReporterInitializer extends
+            ChannelInitializer<SocketChannel> {
 
         private final HeartbeatReporter handler;
 
@@ -139,7 +141,7 @@ public final class HeartbeatHandler {
         @Override
         protected Heartbeat decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
             final ByteBuf frame = (ByteBuf) super.decode(ctx, in);
-            if(frame == null) {
+            if (frame == null) {
                 return null;
             }
             String containerId = NettyUtils.readString(frame);

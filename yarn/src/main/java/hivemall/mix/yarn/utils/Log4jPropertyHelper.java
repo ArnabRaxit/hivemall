@@ -40,8 +40,9 @@ public final class Log4jPropertyHelper {
             customProperties.load(fs);
             Properties originalProperties = new Properties();
             originalProperties.load(is);
-            for(Entry<Object, Object> entry : customProperties.entrySet()) {
-                originalProperties.setProperty(entry.getKey().toString(), entry.getValue().toString());
+            for (Entry<Object, Object> entry : customProperties.entrySet()) {
+                originalProperties.setProperty(entry.getKey().toString(), entry.getValue()
+                                                                               .toString());
             }
             LogManager.resetConfiguration();
             PropertyConfigurator.configure(originalProperties);

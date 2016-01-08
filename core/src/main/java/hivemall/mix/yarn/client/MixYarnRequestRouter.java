@@ -52,13 +52,14 @@ public final class MixYarnRequestRouter extends MixRequestRouter {
         EventLoopGroup workers = new NioEventLoopGroup();
         MixRequester msgHandler = new MixRequester(allocatedConnectInfo);
 
-        Channel ch = startNettyClient(new MixRequestInitializer(msgHandler), connectInfo, MixEnv.YARN_RESOURCE_REQUEST_PORT, workers);
-        
+        Channel ch = startNettyClient(new MixRequestInitializer(msgHandler), connectInfo,
+            MixEnv.YARN_RESOURCE_REQUEST_PORT, workers);
+
         // Block until this MIX server finished
         try {
             ch.writeAndFlush(new MixRequest());
             int retry = 0;
-            while(allocatedConnectInfo.get() == null && retry++ < 32) {
+            while (allocatedConnectInfo.get() == null && retry++ < 32) {
                 Thread.sleep(500L);
             }
         } catch (Exception e) {
@@ -71,7 +72,8 @@ public final class MixYarnRequestRouter extends MixRequestRouter {
     }
 
     @Nonnull
-    private static Channel startNettyClient(ChannelInitializer<SocketChannel> initializer, String host, int port, EventLoopGroup workers) throws MixException {
+    private static Channel startNettyClient(ChannelInitializer<SocketChannel> initializer,
+            String host, int port, EventLoopGroup workers) throws MixException {
         Bootstrap b = new Bootstrap();
         b.group(workers);
         b.channel(NioSocketChannel.class);
@@ -81,16 +83,16 @@ public final class MixYarnRequestRouter extends MixRequestRouter {
         SocketAddress remoteAddr = new InetSocketAddress(host, port);
         Channel ch;
         int retry = 0;
-        while(true) {
+        while (true) {
             try {
                 ch = b.connect(remoteAddr).sync().channel();
-                if(ch.isActive()) {
+                if (ch.isActive()) {
                     break;
                 }
             } catch (Exception e) {
                 // Ignore it
             }
-            if(++retry > 8) {
+            if (++retry > 8) {
                 throw new MixException("Can't connect " + host + ":" + Integer.toString(port));
             }
             // If inactive, retry it

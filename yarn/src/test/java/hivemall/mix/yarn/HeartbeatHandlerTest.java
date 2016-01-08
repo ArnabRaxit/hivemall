@@ -18,6 +18,11 @@
  */
 package hivemall.mix.yarn;
 
+import hivemall.mix.yarn.network.Heartbeat;
+import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiver;
+import hivemall.mix.yarn.utils.TimestampedValue;
+import io.netty.channel.ChannelHandlerContext;
+
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
@@ -25,15 +30,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import io.netty.channel.ChannelHandlerContext;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import hivemall.mix.yarn.network.Heartbeat;
-import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiver;
-import hivemall.mix.yarn.utils.TimestampedValue;
 
 public final class HeartbeatHandlerTest {
 
@@ -44,7 +44,8 @@ public final class HeartbeatHandlerTest {
         aliveMixServers.put("containerId2", createNodeId("localhost", -1));
 
         HeartbeatReceiver handler = new HeartbeatReceiver(aliveMixServers);
-        Method channelReadMethod = HeartbeatReceiver.class.getDeclaredMethod("channelRead0", ChannelHandlerContext.class, Heartbeat.class);
+        Method channelReadMethod = HeartbeatReceiver.class.getDeclaredMethod("channelRead0",
+            ChannelHandlerContext.class, Heartbeat.class);
         channelReadMethod.setAccessible(true);
         ChannelHandlerContext mockCtx = Mockito.mock(ChannelHandlerContext.class);
         channelReadMethod.invoke(handler, mockCtx, new Heartbeat("containerId1", "localhost", 1));
@@ -58,7 +59,7 @@ public final class HeartbeatHandlerTest {
 
     private Set<String> getMapMixServers(Map<String, TimestampedValue<NodeId>> data) {
         final Set<String> result = new HashSet<String>();
-        for(TimestampedValue<NodeId> node : data.values()) {
+        for (TimestampedValue<NodeId> node : data.values()) {
             result.add(node.getValue().toString());
         }
         return result;

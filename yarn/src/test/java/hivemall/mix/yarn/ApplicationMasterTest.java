@@ -18,7 +18,17 @@
  */
 package hivemall.mix.yarn;
 
-import org.apache.hadoop.yarn.api.records.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.hadoop.yarn.api.records.Container;
+import org.apache.hadoop.yarn.api.records.ContainerExitStatus;
+import org.apache.hadoop.yarn.api.records.ContainerId;
+import org.apache.hadoop.yarn.api.records.ContainerState;
+import org.apache.hadoop.yarn.api.records.ContainerStatus;
+import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.Priority;
+import org.apache.hadoop.yarn.api.records.Resource;
 import org.apache.hadoop.yarn.client.api.AMRMClient;
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync;
 import org.apache.hadoop.yarn.server.utils.BuilderUtils;
@@ -27,17 +37,14 @@ import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public final class ApplicationMasterTest {
 
     private static class TestApplicationMaster extends ApplicationMaster {
         private int numThreadLaunched = 0;
 
         @Override
-        protected Runnable createLaunchContainerThread(
-                Container container, ContainerLaunchInfo cmdInfo) {
+        protected Runnable createLaunchContainerThread(Container container,
+                ContainerLaunchInfo cmdInfo) {
             numThreadLaunched++;
             return new Runnable() {
                 @Override
@@ -55,8 +62,9 @@ public final class ApplicationMasterTest {
 
         master.setAmRMClient(mockClient);
         master.setNumContainers(numRequestContainers);
-        Mockito.doNothing().when(mockClient)
-            .addContainerRequest(Matchers.any(AMRMClient.ContainerRequest.class));
+        Mockito.doNothing()
+               .when(mockClient)
+               .addContainerRequest(Matchers.any(AMRMClient.ContainerRequest.class));
 
         ApplicationMaster.RMCallbackHandler handler = master.getRMCallbackHandler();
 
@@ -102,9 +110,8 @@ public final class ApplicationMasterTest {
     }
 
     private Container createContainer(ContainerId cid) {
-        return Container.newInstance(
-                cid, NodeId.newInstance("host", 5000), "host:80",
-                Resource.newInstance(1024, 1), Priority.newInstance(0), null);
+        return Container.newInstance(cid, NodeId.newInstance("host", 5000), "host:80",
+            Resource.newInstance(1024, 1), Priority.newInstance(0), null);
     }
 
     private ContainerStatus createContainerStatus(ContainerId id, int exitStatus) {

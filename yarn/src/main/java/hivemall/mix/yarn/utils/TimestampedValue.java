@@ -43,7 +43,7 @@ public final class TimestampedValue<T> {
 
     @Override
     public boolean equals(Object others) {
-        if(others == null) {
+        if (others == null) {
             return false;
         }
         // Compare value itself

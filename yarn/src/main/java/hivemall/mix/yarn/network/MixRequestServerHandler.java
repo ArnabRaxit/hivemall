@@ -18,10 +18,8 @@
  */
 package hivemall.mix.yarn.network;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
+import hivemall.mix.yarn.MixYarnEnv;
+import hivemall.mix.yarn.utils.TimestampedValue;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -31,10 +29,12 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import org.apache.hadoop.yarn.api.records.NodeId;
 
-import hivemall.mix.yarn.MixYarnEnv;
-import hivemall.mix.yarn.utils.TimestampedValue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.hadoop.yarn.api.records.NodeId;
 
 public final class MixRequestServerHandler {
 
@@ -52,18 +52,17 @@ public final class MixRequestServerHandler {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, MixRequest req)
-                throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, MixRequest req) throws Exception {
             /**
              * TODO: In this initial implementation, this function returns all the active MIX
-             * servers. In a future, it could return a subset of the servers
-             * while considering load balancing.
+             * servers. In a future, it could return a subset of the servers while considering load
+             * balancing.
              */
             final List<String> keys = new ArrayList<String>(activeMixServers.keySet());
             final List<String> urls = new ArrayList<String>();
-            for(String key : keys) {
+            for (String key : keys) {
                 final TimestampedValue<NodeId> node = activeMixServers.get(key);
-                if(node == null || node.getValue().getPort() == -1) {
+                if (node == null || node.getValue().getPort() == -1) {
                     continue;
                 }
                 urls.add(node.toString());
@@ -74,9 +73,9 @@ public final class MixRequestServerHandler {
 
         private static String join(String sep, Iterable<String> elements) {
             StringBuilder sb = new StringBuilder();
-            for(String e : elements) {
-                if(e != null) {
-                    if(sb.length() > 0) {
+            for (String e : elements) {
+                if (e != null) {
+                    if (sb.length() > 0) {
                         sb.append(sep);
                     }
                     sb.append(e);

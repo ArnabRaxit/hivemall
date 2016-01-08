@@ -18,12 +18,6 @@
  */
 package hivemall.mix.yarn.network;
 
-import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.net.UnknownHostException;
-
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -33,10 +27,17 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.UnknownHostException;
+
 public final class NettyUtils {
 
-    public static Channel startNettyClient(ChannelInitializer<SocketChannel> initializer, String host, int port, EventLoopGroup workers)
-            throws RuntimeException, InterruptedException {
+    public static Channel startNettyClient(ChannelInitializer<SocketChannel> initializer,
+            String host, int port, EventLoopGroup workers) throws RuntimeException,
+            InterruptedException {
         Bootstrap b = new Bootstrap();
         b.group(workers);
         b.channel(NioSocketChannel.class);
@@ -46,15 +47,15 @@ public final class NettyUtils {
         SocketAddress remoteAddr = new InetSocketAddress(host, port);
         Channel ch;
         int retry = 0;
-        while(true) {
+        while (true) {
             try {
                 ch = b.connect(remoteAddr).sync().channel();
-                if(ch.isActive())
+                if (ch.isActive())
                     break;
             } catch (Exception e) {
                 // Ignore it
             }
-            if(++retry > 8) {
+            if (++retry > 8) {
                 throw new RuntimeException("Can't connect " + host + ":" + Integer.toString(port));
             }
             // If inactive, retry it
@@ -66,7 +67,7 @@ public final class NettyUtils {
     public static String getHostAddress() {
         try {
             return InetAddress.getLocalHost().getHostAddress();
-        } catch(UnknownHostException e) {
+        } catch (UnknownHostException e) {
             e.printStackTrace();
         }
         return "";
@@ -74,7 +75,7 @@ public final class NettyUtils {
 
     public static void writeString(final String s, final ByteBuf buf)
             throws UnsupportedEncodingException {
-        if(s == null) {
+        if (s == null) {
             buf.writeInt(-1);
             return;
         }
@@ -85,14 +86,14 @@ public final class NettyUtils {
 
     public static String readString(final ByteBuf in) {
         int length = in.readInt();
-        if(length == -1) {
+        if (length == -1) {
             return null;
         }
         byte[] b = new byte[length];
         in.readBytes(b, 0, length);
         try {
             return new String(b, "utf-8");
-        } catch(UnsupportedEncodingException e) {
+        } catch (UnsupportedEncodingException e) {
             return null;
         }
     }

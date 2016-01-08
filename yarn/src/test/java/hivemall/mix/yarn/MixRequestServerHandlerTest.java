@@ -18,21 +18,25 @@
  */
 package hivemall.mix.yarn;
 
+import hivemall.mix.yarn.network.MixRequest;
+import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestReceiver;
+import hivemall.mix.yarn.utils.TimestampedValue;
+import io.netty.channel.ChannelHandlerContext;
+
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
-import io.netty.channel.ChannelHandlerContext;
 import org.apache.hadoop.yarn.api.records.NodeId;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestReceiver;
-import hivemall.mix.yarn.network.MixRequest;
-import hivemall.mix.yarn.utils.TimestampedValue;
 
 public final class MixRequestServerHandlerTest {
 
@@ -44,7 +48,8 @@ public final class MixRequestServerHandlerTest {
         aliveMixServers.put("containerId3", createNodeId("localhost", 3));
 
         MixRequestReceiver handler = new MixRequestReceiver(aliveMixServers);
-        Method channelReadMethod = MixRequestReceiver.class.getDeclaredMethod("channelRead0", ChannelHandlerContext.class, MixRequest.class);
+        Method channelReadMethod = MixRequestReceiver.class.getDeclaredMethod("channelRead0",
+            ChannelHandlerContext.class, MixRequest.class);
         channelReadMethod.setAccessible(true);
         ChannelHandlerContext mockCtx = Mockito.mock(ChannelHandlerContext.class);
         ArgumentCaptor<MixRequest> arg = ArgumentCaptor.forClass(MixRequest.class);

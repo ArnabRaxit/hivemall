@@ -30,7 +30,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 public class MixRequestRouter {
-    
+
     @Nonnull
     private final String connectInfo;
 
@@ -38,7 +38,7 @@ public class MixRequestRouter {
     private NodeInfo[] nodes;
 
     public MixRequestRouter(@CheckForNull String connectInfo) {
-        if(connectInfo == null) {
+        if (connectInfo == null) {
             throw new IllegalArgumentException("connectInfo is null");
         }
         this.connectInfo = connectInfo;
@@ -47,7 +47,7 @@ public class MixRequestRouter {
     public void initialize() throws MixException {
         this.nodes = parseMixServerList(toMixServerList(connectInfo));
     }
-    
+
     protected String toMixServerList(String connectInfo) throws MixException {
         return connectInfo;
     }
@@ -67,12 +67,13 @@ public class MixRequestRouter {
     private static NodeInfo[] parseMixServerList(@Nonnull String connectInfo) throws MixException {
         String[] endpoints = connectInfo.split("\\s*,\\s*");
         final int numEndpoints = endpoints.length;
-        if(numEndpoints < 1) {
+        if (numEndpoints < 1) {
             throw new MixException("Invalid connectInfo: " + connectInfo);
         }
         NodeInfo[] nodes = new NodeInfo[numEndpoints];
-        for(int i = 0; i < numEndpoints; i++) {
-            InetSocketAddress addr = NetUtils.getInetSocketAddress(endpoints[i], MixEnv.MIXSERV_DEFAULT_PORT);
+        for (int i = 0; i < numEndpoints; i++) {
+            InetSocketAddress addr = NetUtils.getInetSocketAddress(endpoints[i],
+                MixEnv.MIXSERV_DEFAULT_PORT);
             nodes[i] = new NodeInfo(addr);
         }
         return nodes;

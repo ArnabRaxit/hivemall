@@ -30,7 +30,8 @@ public class WorkerCommandBuilderTest {
 
     @Test
     public void testInvokeProcess() {
-        WorkerCommandBuilder cmdBuilder = new WorkerCommandBuilder(Launcher.class, "", 512, Arrays.asList("test"), null);
+        WorkerCommandBuilder cmdBuilder = new WorkerCommandBuilder(Launcher.class, "", 512,
+            Arrays.asList("test"), null);
         String output = null;
         int exitCode = -1;
         try {
@@ -39,7 +40,7 @@ public class WorkerCommandBuilderTest {
             InputStream input = process.getInputStream();
             output = IOUtils.toString(input);
             exitCode = process.waitFor();
-        } catch(Exception e) {
+        } catch (Exception e) {
             Assert.fail("Failed to launch a program:" + cmdBuilder);
         }
         Assert.assertEquals("This is a test program! args=[test]", output);

@@ -18,21 +18,14 @@
  */
 package hivemall.mix.yarn;
 
-import java.io.IOException;
-import java.lang.reflect.UndeclaredThrowableException;
-import java.nio.ByteBuffer;
-import java.security.PrivilegedExceptionAction;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import javax.annotation.concurrent.ThreadSafe;
-
+import hivemall.mix.yarn.launcher.WorkerCommandBuilder;
+import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiver;
+import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiverInitializer;
+import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestInitializer;
+import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestReceiver;
+import hivemall.mix.yarn.network.NettyUtils;
+import hivemall.mix.yarn.utils.TimestampedValue;
+import hivemall.mix.yarn.utils.YarnUtils;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -42,6 +35,29 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+
+import java.io.IOException;
+import java.lang.reflect.UndeclaredThrowableException;
+import java.nio.ByteBuffer;
+import java.security.PrivilegedExceptionAction;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.annotation.concurrent.ThreadSafe;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.GnuParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -87,28 +103,16 @@ import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hadoop.yarn.security.AMRMTokenIdentifier;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
-import hivemall.mix.yarn.launcher.WorkerCommandBuilder;
-import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiverInitializer;
-import hivemall.mix.yarn.network.HeartbeatHandler.HeartbeatReceiver;
-import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestInitializer;
-import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestReceiver;
-import hivemall.mix.yarn.network.NettyUtils;
-import hivemall.mix.yarn.utils.TimestampedValue;
-import hivemall.mix.yarn.utils.YarnUtils;
-
 public class ApplicationMaster {
     private static final Log logger = LogFactory.getLog(ApplicationMaster.class);
 
     private static enum MixServEvent {
-        MIXSERV_APP_ATTEMPT_START,
-        MIXSERV_APP_ATTEMPT_END,
-        MIXSERV_CONTAINER_START,
+        MIXSERV_APP_ATTEMPT_START, MIXSERV_APP_ATTEMPT_END, MIXSERV_CONTAINER_START,
         MIXSERV_CONTAINER_END,
     }
 
     private static enum MixServEntity {
-        MIXSERV_APP_ATTEMPT,
-        MIXSERV_CONTAINER,
+        MIXSERV_APP_ATTEMPT, MIXSERV_CONTAINER,
     }
 
     private String containerMainClass;
@@ -172,16 +176,16 @@ public class ApplicationMaster {
         boolean result = false;
         try {
             boolean doRun = appMaster.init(args);
-            if(!doRun) {
+            if (!doRun) {
                 System.exit(0);
             }
             appMaster.run();
             result = appMaster.finish();
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             logger.fatal("Error running AM", t);
             ExitUtil.terminate(1, t);
         }
-        if(result) {
+        if (result) {
             logger.info("AM completed successfully");
             System.exit(0);
         } else {
@@ -196,11 +200,14 @@ public class ApplicationMaster {
         this.conf = new YarnConfiguration();
         opts.addOption("", true, "# of containers for MIX servers");
         opts.addOption("num_containers", true, "# of containers for MIX servers");
-        opts.addOption("container_memory", true, "Amount of memory in MB to be requested to run a MIX server");
-        opts.addOption("container_vcores", true, "Amount of virtual cores to be requested to run a MIX server");
+        opts.addOption("container_memory", true,
+            "Amount of memory in MB to be requested to run a MIX server");
+        opts.addOption("container_vcores", true,
+            "Amount of virtual cores to be requested to run a MIX server");
         opts.addOption("priority", true, "Application Priority [Default: 0]");
         opts.addOption("num_retries", true, "# of retries for failed containers [Default: 32]");
-        opts.addOption("publish_logs", false, "Flag to publish logs into a YARN timeline server [Default: false]");
+        opts.addOption("publish_logs", false,
+            "Flag to publish logs into a YARN timeline server [Default: false]");
         opts.addOption("help", false, "Print usage");
     }
 
@@ -210,18 +217,20 @@ public class ApplicationMaster {
     }
 
     protected boolean init(String[] args) throws ParseException, IOException {
-        if(args.length == 0) {
-            throw new IllegalArgumentException("No args specified for MixServerRunner to initialize");
+        if (args.length == 0) {
+            throw new IllegalArgumentException(
+                "No args specified for MixServerRunner to initialize");
         }
 
         CommandLine cliParser = new GnuParser().parse(opts, args);
-        if(cliParser.hasOption("help")) {
+        if (cliParser.hasOption("help")) {
             printUsage();
             return false;
         }
 
         // Get variables from envs
-        appAttemptID = ConverterUtils.toContainerId(getEnv(Environment.CONTAINER_ID.name())).getApplicationAttemptId();
+        appAttemptID = ConverterUtils.toContainerId(getEnv(Environment.CONTAINER_ID.name()))
+                                     .getApplicationAttemptId();
         sharedDir = getEnv(MixYarnEnv.MIXSERVER_RESOURCE_LOCATION);
         mixServJar = getEnv(MixYarnEnv.MIXSERVER_CONTAINER_APP);
 
@@ -231,7 +240,7 @@ public class ApplicationMaster {
         numContainers = Integer.parseInt(cliParser.getOptionValue("num_containers", "1"));
         requestPriority = Integer.parseInt(cliParser.getOptionValue("priority", "0"));
         numRetryForFailedContainers = Integer.parseInt(cliParser.getOptionValue("num_retries", "32"));
-        if(numContainers == 0) {
+        if (numContainers == 0) {
             throw new IllegalArgumentException("Cannot run distributed shell with no containers");
         }
 
@@ -239,7 +248,8 @@ public class ApplicationMaster {
         isLogPublished = cliParser.hasOption("publish_logs");
 
         // Check if NMs monitor virtual memory limits
-        if(conf.getBoolean(YarnConfiguration.NM_VMEM_CHECK_ENABLED, YarnConfiguration.DEFAULT_NM_VMEM_CHECK_ENABLED)) {
+        if (conf.getBoolean(YarnConfiguration.NM_VMEM_CHECK_ENABLED,
+            YarnConfiguration.DEFAULT_NM_VMEM_CHECK_ENABLED)) {
             logger.warn("Recommended: set 'yarn.nodemanager.vmem-check-enabled' at false");
         }
 
@@ -254,7 +264,7 @@ public class ApplicationMaster {
 
     private String getEnv(String key) {
         final String value = System.getenv(key);
-        if(value == null) {
+        if (value == null) {
             return "";
         }
         return value;
@@ -303,10 +313,10 @@ public class ApplicationMaster {
         // Now remove the AM->RM token so that containers cannot access it
         Iterator<Token<?>> iter = credentials.getAllTokens().iterator();
         logger.info("Executing with tokens:");
-        while(iter.hasNext()) {
+        while (iter.hasNext()) {
             Token<?> token = iter.next();
             logger.info(token);
-            if(token.getKind().equals(AMRMTokenIdentifier.KIND_NAME)) {
+            if (token.getKind().equals(AMRMTokenIdentifier.KIND_NAME)) {
                 iter.remove();
             }
         }
@@ -318,7 +328,8 @@ public class ApplicationMaster {
         appSubmitterUgi.addCredentials(credentials);
 
         // AM <--> RM
-        amRMClientAsync = AMRMClientAsync.createAMRMClientAsync(1000, new RMCallbackHandler(Thread.currentThread()));
+        amRMClientAsync = AMRMClientAsync.createAMRMClientAsync(1000,
+            new RMCallbackHandler(Thread.currentThread()));
         amRMClientAsync.init(conf);
         amRMClientAsync.start();
 
@@ -328,42 +339,47 @@ public class ApplicationMaster {
         nmClientAsync.init(conf);
         nmClientAsync.start();
 
-        if(isLogPublished) {
+        if (isLogPublished) {
             startTimelineClient(conf);
-            if(timelineClient != null) {
+            if (timelineClient != null) {
                 publishApplicationAttemptEvent(timelineClient, appAttemptID.toString(),
-                        MixServEvent.MIXSERV_APP_ATTEMPT_START, appSubmitterUgi);
+                    MixServEvent.MIXSERV_APP_ATTEMPT_START, appSubmitterUgi);
             }
         }
 
         // Register self with ResourceManager to start
         // heartbeating to the RM.
-        RegisterApplicationMasterResponse response = amRMClientAsync.registerApplicationMaster("", -1, "");
+        RegisterApplicationMasterResponse response = amRMClientAsync.registerApplicationMaster("",
+            -1, "");
 
         // A resource ask cannot exceed the max
         int maxVCores = response.getMaximumResourceCapability().getVirtualCores();
-        if(containerVCores > maxVCores) {
+        if (containerVCores > maxVCores) {
             logger.warn("cores:" + containerVCores + " requested, but only cores:" + maxVCores
                     + " available.");
             containerVCores = maxVCores;
         }
         int maxMem = response.getMaximumResourceCapability().getMemory();
-        if(containerMemory > maxMem) {
+        if (containerMemory > maxMem) {
             logger.warn("mem:" + containerMemory + " requested, but only mem:" + maxMem
                     + " available.");
             containerMemory = maxMem;
         }
 
         // Accept heartbeats from launched MIX servers
-        startNettyServer(new HeartbeatReceiverInitializer(new HeartbeatReceiver(activeMixServers)), MixYarnEnv.REPORT_RECEIVER_PORT);
+        startNettyServer(new HeartbeatReceiverInitializer(new HeartbeatReceiver(activeMixServers)),
+            MixYarnEnv.REPORT_RECEIVER_PORT);
 
         // Accept resource requests from clients
-        startNettyServer(new MixRequestInitializer(new MixRequestReceiver(activeMixServers)), MixYarnEnv.RESOURCE_REQUEST_PORT);
+        startNettyServer(new MixRequestInitializer(new MixRequestReceiver(activeMixServers)),
+            MixYarnEnv.RESOURCE_REQUEST_PORT);
 
         // Start scheduled threads to check if MIX servers keep alive
-        monitorContainerExecutor.scheduleAtFixedRate(new MonitorContainerRunnable(amRMClientAsync, activeMixServers, allocContainers), MixYarnEnv.MIXSERVER_HEARTBEAT_INTERVAL, MixYarnEnv.MIXSERVER_HEARTBEAT_INTERVAL, TimeUnit.SECONDS);
+        monitorContainerExecutor.scheduleAtFixedRate(new MonitorContainerRunnable(amRMClientAsync,
+            activeMixServers, allocContainers), MixYarnEnv.MIXSERVER_HEARTBEAT_INTERVAL,
+            MixYarnEnv.MIXSERVER_HEARTBEAT_INTERVAL, TimeUnit.SECONDS);
 
-        for(int i = 0; i < numContainers; i++) {
+        for (int i = 0; i < numContainers; i++) {
             AMRMClient.ContainerRequest containerAsk = setupContainerAskForRM();
             amRMClientAsync.addContainerRequest(containerAsk);
         }
@@ -375,8 +391,8 @@ public class ApplicationMaster {
             appSubmitterUgi.doAs(new PrivilegedExceptionAction<Void>() {
                 @Override
                 public Void run() throws Exception {
-                    if(conf.getBoolean(YarnConfiguration.TIMELINE_SERVICE_ENABLED,
-                            YarnConfiguration.DEFAULT_TIMELINE_SERVICE_ENABLED)) {
+                    if (conf.getBoolean(YarnConfiguration.TIMELINE_SERVICE_ENABLED,
+                        YarnConfiguration.DEFAULT_TIMELINE_SERVICE_ENABLED)) {
                         // Create the Timeline Client
                         timelineClient = TimelineClient.createTimelineClient();
                         timelineClient.init(conf);
@@ -393,10 +409,10 @@ public class ApplicationMaster {
         }
     }
 
-    private static void publishApplicationAttemptEvent(
-            final TimelineClient timelineClient, String appAttemptId, MixServEvent appEvent,
-            UserGroupInformation ugi) {
-        logger.info("Try to publish an event: appAttemptId=" + appAttemptId + ", appEvent=" + appEvent);
+    private static void publishApplicationAttemptEvent(final TimelineClient timelineClient,
+            String appAttemptId, MixServEvent appEvent, UserGroupInformation ugi) {
+        logger.info("Try to publish an event: appAttemptId=" + appAttemptId + ", appEvent="
+                + appEvent);
         final TimelineEntity entity = new TimelineEntity();
         entity.setEntityId(appAttemptId);
         entity.setEntityType(MixServEntity.MIXSERV_APP_ATTEMPT.toString());
@@ -414,10 +430,10 @@ public class ApplicationMaster {
         }
     }
 
-    private static void publishContainerStartEvent(
-          final TimelineClient timelineClient, Container container, UserGroupInformation ugi) {
-        logger.info("Try to publish an event: containerId="
-                + container.getId() + ", appEvent=" + MixServEvent.MIXSERV_CONTAINER_START);
+    private static void publishContainerStartEvent(final TimelineClient timelineClient,
+            Container container, UserGroupInformation ugi) {
+        logger.info("Try to publish an event: containerId=" + container.getId() + ", appEvent="
+                + MixServEvent.MIXSERV_CONTAINER_START);
         final TimelineEntity entity = new TimelineEntity();
         entity.setEntityId(container.getId().toString());
         entity.setEntityType(MixServEntity.MIXSERV_CONTAINER.toString());
@@ -436,15 +452,16 @@ public class ApplicationMaster {
                 }
             });
         } catch (Exception e) {
-            logger.error("Container start event could not be published for " + container.getId().toString(),
-                    (e instanceof UndeclaredThrowableException)? e.getCause() : e);
+            logger.error("Container start event could not be published for "
+                    + container.getId().toString(),
+                (e instanceof UndeclaredThrowableException) ? e.getCause() : e);
         }
-      }
+    }
 
-    private static void publishContainerEndEvent(
-            final TimelineClient timelineClient, ContainerStatus container, UserGroupInformation ugi) {
-        logger.info("Try to publish an event: containerId="
-                + container.getContainerId() + ", appEvent=" + MixServEvent.MIXSERV_CONTAINER_END);
+    private static void publishContainerEndEvent(final TimelineClient timelineClient,
+            ContainerStatus container, UserGroupInformation ugi) {
+        logger.info("Try to publish an event: containerId=" + container.getContainerId()
+                + ", appEvent=" + MixServEvent.MIXSERV_CONTAINER_END);
         final TimelineEntity entity = new TimelineEntity();
         entity.setEntityId(container.getContainerId().toString());
         entity.setEntityType(MixServEntity.MIXSERV_CONTAINER.toString());
@@ -491,7 +508,9 @@ public class ApplicationMaster {
         private final ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers;
         private final ConcurrentMap<String, Container> allocContainers;
 
-        public MonitorContainerRunnable(AMRMClientAsync<ContainerRequest> amRMClientAsync, ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers, ConcurrentMap<String, Container> allocContainers) {
+        public MonitorContainerRunnable(AMRMClientAsync<ContainerRequest> amRMClientAsync,
+                ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers,
+                ConcurrentMap<String, Container> allocContainers) {
             this.amRMClientAsync = amRMClientAsync;
             this.allocContainers = allocContainers;
             this.activeMixServers = activeMixServers;
@@ -501,20 +520,21 @@ public class ApplicationMaster {
         public void run() {
             final Set<Entry<String, TimestampedValue<NodeId>>> set = activeMixServers.entrySet();
             final Iterator<Entry<String, TimestampedValue<NodeId>>> itor = set.iterator();
-            while(itor.hasNext()) {
+            while (itor.hasNext()) {
                 Entry<String, TimestampedValue<NodeId>> e = itor.next();
                 TimestampedValue<NodeId> value = e.getValue();
                 long elapsedTime = System.currentTimeMillis() - value.getTimestamp();
                 // Wait at most two-times intervals for heartbeats
                 logger.info("Start checking an alive set of MIX servers");
-                if(elapsedTime > MixYarnEnv.MIXSERVER_HEARTBEAT_TIMEOUT * 1000) {
+                if (elapsedTime > MixYarnEnv.MIXSERVER_HEARTBEAT_TIMEOUT * 1000) {
                     // If expired, restart the MIX server
                     final String containerId = e.getKey();
                     final NodeId node = value.getValue();
                     final Container container = allocContainers.get(containerId);
-                    if(container != null) {
+                    if (container != null) {
                         // Released containers exited with ContainerExitStatus.ABORTED
-                        logger.warn("Release " + container.getId() + " because heartbeats not received");
+                        logger.warn("Release " + container.getId()
+                                + " because heartbeats not received");
                         releaseAssignedContainer(container.getId());
                         itor.remove();
                     } else {
@@ -554,7 +574,7 @@ public class ApplicationMaster {
         public void onContainersCompleted(List<ContainerStatus> completedContainers) {
             logger.info("Got response from RM for container ask, completedCnt="
                     + completedContainers.size());
-            for(ContainerStatus containerStatus : completedContainers) {
+            for (ContainerStatus containerStatus : completedContainers) {
                 final String containerId = containerStatus.getContainerId().toString();
 
                 logger.info(appAttemptID + " got container status for " + "containerID:"
@@ -567,7 +587,7 @@ public class ApplicationMaster {
 
                 // Ignore containers we know nothing about - probably
                 // from a previous attempt.
-                if(!allocContainers.containsKey(containerId)) {
+                if (!allocContainers.containsKey(containerId)) {
                     logger.warn("Ignored completed status of " + containerId
                             + "; unknown container (probably launched by previous attempt)");
                     continue;
@@ -583,7 +603,7 @@ public class ApplicationMaster {
 
                 // Retry if container has some exit conditions
                 int exitStatus = containerStatus.getExitStatus();
-                switch(exitStatus) {
+                switch (exitStatus) {
                     case ContainerExitStatus.INVALID:
                     case 143: { // Killed by yarn
                         numFailedContainers.incrementAndGet();
@@ -602,29 +622,29 @@ public class ApplicationMaster {
                     }
                 }
 
-                if(isLogPublished) {
+                if (isLogPublished) {
                     publishContainerEndEvent(timelineClient, containerStatus, appSubmitterUgi);
                 }
             }
 
             // Retry launching containers if not terminated
             int reAskCount = numContainers - numRequestedContainers.get();
-            if(!isTerminated && reAskCount > 0) {
-                if(numRetries++ < numRetryForFailedContainers) {
+            if (!isTerminated && reAskCount > 0) {
+                if (numRetries++ < numRetryForFailedContainers) {
                     logger.warn("Retry " + reAskCount + " requests for failed containers");
-                    for(int i = 0; i < reAskCount; i++) {
+                    for (int i = 0; i < reAskCount; i++) {
                         ContainerRequest containerAsk = setupContainerAskForRM();
                         amRMClientAsync.addContainerRequest(containerAsk);
                     }
                     numRequestedContainers.addAndGet(reAskCount);
                 } else {
-                    logger.warn("Allowable #retries exceeded; "
-                            + numRequestedContainers.get() + " MIX servers alive");
+                    logger.warn("Allowable #retries exceeded; " + numRequestedContainers.get()
+                            + " MIX servers alive");
                 }
             }
 
             // Finish AM if no request
-            if(numRequestedContainers.get() == 0) {
+            if (numRequestedContainers.get() == 0) {
                 logger.fatal("Allocation request gone for containers");
                 nortifyShutdown();
             }
@@ -634,9 +654,9 @@ public class ApplicationMaster {
         public void onContainersAllocated(List<Container> allocatedContainers) {
             logger.info("Got response from RM for container ask, allocatedCnt="
                     + allocatedContainers.size());
-            for(Container container : allocatedContainers) {
+            for (Container container : allocatedContainers) {
                 // TODO: Why this condition below happens?
-                if(isTerminated || numAllocatedContainers.get() >= numContainers) {
+                if (isTerminated || numAllocatedContainers.get() >= numContainers) {
                     logger.warn(container.getId() + " not accepted because of AM state"
                             + " (probably, # of allocated containers exceeded");
                     amRMClientAsync.releaseAssignedContainer(container.getId());
@@ -656,7 +676,8 @@ public class ApplicationMaster {
                 // Launch and start the container on a separate thread to keep
                 // the main thread unblocked as all containers
                 // may not be allocated at one go.
-                final Runnable containerTask = createLaunchContainerThread(container, new ContainerLaunchInfo(container.getId()));
+                final Runnable containerTask = createLaunchContainerThread(container,
+                    new ContainerLaunchInfo(container.getId()));
                 containerExecutor.submit(containerTask);
             }
         }
@@ -689,7 +710,8 @@ public class ApplicationMaster {
         protected final ApplicationMaster appMaster;
         protected final ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers;
 
-        public NMCallbackHandler(ApplicationMaster appMaster, ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers) {
+        public NMCallbackHandler(ApplicationMaster appMaster,
+                ConcurrentMap<String, TimestampedValue<NodeId>> activeMixServers) {
             this.appMaster = appMaster;
             this.activeMixServers = activeMixServers;
         }
@@ -698,7 +720,7 @@ public class ApplicationMaster {
         public void onContainerStarted(ContainerId containerId, Map<String, ByteBuffer> map) {
             logger.info("Succeeded to start Container " + containerId);
             final Container container = appMaster.allocContainers.get(containerId.toString());
-            if(container != null) {
+            if (container != null) {
                 appMaster.nmClientAsync.getContainerStatusAsync(containerId, container.getNodeId());
                 // Create an invalid entry for the MIX server that is not launched yet and
                 // the first heartbeat message makes this entry valid
@@ -712,9 +734,9 @@ public class ApplicationMaster {
                         + "probably launched by previous attempt)");
             }
 
-            if(appMaster.timelineClient != null) {
-                ApplicationMaster.publishContainerStartEvent(
-                        appMaster.timelineClient, container, appMaster.appSubmitterUgi);
+            if (appMaster.timelineClient != null) {
+                ApplicationMaster.publishContainerStartEvent(appMaster.timelineClient, container,
+                    appMaster.appSubmitterUgi);
             }
         }
 
@@ -745,7 +767,7 @@ public class ApplicationMaster {
     }
 
     protected boolean finish() {
-        while(!isTerminated) {
+        while (!isTerminated) {
             try {
                 Thread.sleep(60 * 1000L);
             } catch (InterruptedException e) {
@@ -753,19 +775,19 @@ public class ApplicationMaster {
                 break;
             }
 
-            if(isLogPublished) {
+            if (isLogPublished) {
                 publishApplicationAttemptEvent(timelineClient, appAttemptID.toString(),
-                        MixServEvent.MIXSERV_APP_ATTEMPT_END, appSubmitterUgi);
+                    MixServEvent.MIXSERV_APP_ATTEMPT_END, appSubmitterUgi);
             }
 
             // Show registered MIX servers if info-loglevel enabled
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 StringBuilder sb = new StringBuilder();
-                for(TimestampedValue<NodeId> node : activeMixServers.values()) {
-                    if(sb.length() > 0) {
+                for (TimestampedValue<NodeId> node : activeMixServers.values()) {
+                    if (sb.length() > 0) {
                         sb.append(",");
                     }
-                    if(node.getValue().getPort() == -1) {
+                    if (node.getValue().getPort() == -1) {
                         sb.append(node.getValue().getHost() + ":UNINITIALIZED");
                     } else {
                         sb.append(node);
@@ -783,7 +805,7 @@ public class ApplicationMaster {
         nmClientAsync.stop();
 
         // Stop all the netty workers
-        for(EventLoopGroup worker : nettyWorkers) {
+        for (EventLoopGroup worker : nettyWorkers) {
             worker.shutdownGracefully();
         }
 
@@ -792,7 +814,7 @@ public class ApplicationMaster {
         FinalApplicationStatus appStatus;
         String appMessage = null;
         boolean success = true;
-        if(numFailedContainers.get() == 0) {
+        if (numFailedContainers.get() == 0) {
             appStatus = FinalApplicationStatus.SUCCEEDED;
         } else {
             appStatus = FinalApplicationStatus.FAILED;
@@ -839,8 +861,9 @@ public class ApplicationMaster {
             try {
                 final FileSystem fs = FileSystem.get(conf);
                 final Path mixServJarDst = new Path(sharedDir, mixServJar);
-                localResources.put(mixServJarDst.getName(), YarnUtils.createLocalResource(fs, mixServJarDst));
-            } catch(IOException e) {
+                localResources.put(mixServJarDst.getName(),
+                    YarnUtils.createLocalResource(fs, mixServJarDst));
+            } catch (IOException e) {
                 e.printStackTrace();
             }
 
@@ -861,7 +884,8 @@ public class ApplicationMaster {
             int mixServMemory = (int) (containerMemory * 0.90);
 
             // Create a command executed in NM
-            final WorkerCommandBuilder cmdBuilder = new WorkerCommandBuilder(containerMainClass, YarnUtils.getSystemClassPath(), mixServMemory, vargs, null);
+            final WorkerCommandBuilder cmdBuilder = new WorkerCommandBuilder(containerMainClass,
+                YarnUtils.getSystemClassPath(), mixServMemory, vargs, null);
 
             // Set a yarn-specific java home
             cmdBuilder.setJavaHome(Environment.JAVA_HOME.$$());
@@ -870,11 +894,12 @@ public class ApplicationMaster {
 
             List<String> cmd = null;
             try {
-              cmd = cmdBuilder.buildCommand();
+                cmd = cmdBuilder.buildCommand();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            return ContainerLaunchContext.newInstance(localResources, null, cmd, null, allTokens, null);
+            return ContainerLaunchContext.newInstance(localResources, null, cmd, null, allTokens,
+                null);
         }
     }
 

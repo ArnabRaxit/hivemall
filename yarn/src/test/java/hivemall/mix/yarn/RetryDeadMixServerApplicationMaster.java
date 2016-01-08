@@ -18,10 +18,10 @@
  */
 package hivemall.mix.yarn;
 
-import org.apache.hadoop.yarn.api.records.ContainerId;
-
 import java.nio.ByteBuffer;
 import java.util.Map;
+
+import org.apache.hadoop.yarn.api.records.ContainerId;
 
 // TODO: Move to the inner class of MixClusterTest
 public final class RetryDeadMixServerApplicationMaster extends ApplicationMaster {

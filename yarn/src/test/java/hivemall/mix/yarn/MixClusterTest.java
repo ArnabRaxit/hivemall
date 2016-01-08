@@ -18,6 +18,16 @@
  */
 package hivemall.mix.yarn;
 
+import hivemall.mix.yarn.network.MixRequest;
+import hivemall.mix.yarn.network.MixRequestServerHandler.AbstractMixRequestServerHandler;
+import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestInitializer;
+import hivemall.mix.yarn.network.NettyUtils;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -34,11 +44,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -49,12 +54,11 @@ import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.server.MiniYARNCluster;
-import org.junit.*;
-
-import hivemall.mix.yarn.network.NettyUtils;
-import hivemall.mix.yarn.network.MixRequest;
-import hivemall.mix.yarn.network.MixRequestServerHandler.AbstractMixRequestServerHandler;
-import hivemall.mix.yarn.network.MixRequestServerHandler.MixRequestInitializer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public final class MixClusterTest {
     private static final Log logger = LogFactory.getLog(MixClusterTest.class);
@@ -77,7 +81,8 @@ public final class MixClusterTest {
         assert yarnCluster == null;
 
         logger.info("Starting up a YARN cluster");
-        this.yarnCluster = new MiniYARNCluster(MixClusterTest.class.getSimpleName(), 1, numNodeManager, 1, 1);
+        this.yarnCluster = new MiniYARNCluster(MixClusterTest.class.getSimpleName(), 1,
+            numNodeManager, 1, 1);
         yarnCluster.init(conf);
         yarnCluster.start();
 
@@ -102,7 +107,8 @@ public final class MixClusterTest {
     Future<Boolean> startMixCluster(Class<?> mainClass, String[] options) throws Exception {
         assert mixClusterRunner == null;
 
-        this.mixClusterRunner = new MixClusterRunner(mainClass.getName(), new Configuration(yarnCluster.getConfig()));
+        this.mixClusterRunner = new MixClusterRunner(mainClass.getName(), new Configuration(
+            yarnCluster.getConfig()));
         Assert.assertTrue(mixClusterRunner.init(options));
 
         Future<Boolean> mixCluster = mixClusterExec.submit(new Callable<Boolean>() {
@@ -124,15 +130,15 @@ public final class MixClusterTest {
         yarnClient.init(new Configuration(yarnCluster.getConfig()));
         yarnClient.start();
 
-        while(true) {
+        while (true) {
             List<ApplicationReport> apps = yarnClient.getApplications();
-            if(apps.size() == 0) {
+            if (apps.size() == 0) {
                 Thread.sleep(500L);
                 continue;
             }
             Assert.assertEquals(1, apps.size());
             ApplicationReport appReport = apps.get(0);
-            if(appReport.getHost().equals("N/A")) {
+            if (appReport.getHost().equals("N/A")) {
                 Thread.sleep(100L);
                 continue;
             }
@@ -154,7 +160,7 @@ public final class MixClusterTest {
     public void tearDown() throws Exception {
         try {
             // Shut down a MIX cluster, then a YARN cluster
-            if(mixClusterRunner != null) {
+            if (mixClusterRunner != null) {
                 mixClusterRunner.forceKillApplication();
             }
             mixClusterExec.shutdown();
@@ -168,23 +174,23 @@ public final class MixClusterTest {
 
     private void waitForNMsToRegister() throws Exception {
         int retry = 0;
-        while(true) {
+        while (true) {
             Thread.sleep(1000L);
-            if(yarnCluster.getResourceManager().getRMContext().getRMNodes().size() >= numNodeManager) {
+            if (yarnCluster.getResourceManager().getRMContext().getRMNodes().size() >= numNodeManager) {
                 break;
             }
-            if(retry++ > 60) {
+            if (retry++ > 60) {
                 Assert.fail("Can't launch a yarn cluster");
             }
         }
     }
 
-    @Test(timeout=360*1000L)
+    @Test(timeout = 360 * 1000L)
     public void testSimpleScenario() throws Exception {
         int numMixServers = 1;
-        final String[] options = { "--jar", appJar, "--num_containers", Integer.toString(numMixServers),
-                "--master_memory", "128", "--master_vcores", "1", "--container_memory", "128",
-                "--container_vcores", "1" };
+        final String[] options = {"--jar", appJar, "--num_containers",
+                Integer.toString(numMixServers), "--master_memory", "128", "--master_vcores", "1",
+                "--container_memory", "128", "--container_vcores", "1"};
 
         Future<Boolean> result = startMixCluster(ApplicationMaster.class, options);
         Assert.assertEquals(2, verifyContainerLog("REGISTERED"));
@@ -195,12 +201,13 @@ public final class MixClusterTest {
 
         EventLoopGroup workers = new NioEventLoopGroup();
         MixRequester msgHandler = new MixRequester(mixServers);
-        Channel ch = NettyUtils.startNettyClient(new MixRequestInitializer(msgHandler), "localhost", MixYarnEnv.RESOURCE_REQUEST_PORT, workers);
+        Channel ch = NettyUtils.startNettyClient(new MixRequestInitializer(msgHandler),
+            "localhost", MixYarnEnv.RESOURCE_REQUEST_PORT, workers);
 
         // Request all the MIX servers
         ch.writeAndFlush(new MixRequest());
         int retry = 0;
-        while(mixServers.get() == null && retry++ < 32) {
+        while (mixServers.get() == null && retry++ < 32) {
             Thread.sleep(500L);
         }
 
@@ -209,7 +216,7 @@ public final class MixClusterTest {
         // Parse allocated MIX servers
         String[] hosts = mixServers.get().split(Pattern.quote(MixYarnEnv.MIXSERVER_SEPARATOR));
         Assert.assertEquals(numMixServers, hosts.length);
-        for(String host : hosts) {
+        for (String host : hosts) {
             Assert.assertTrue(host.contains(NettyUtils.getHostAddress()));
         }
 
@@ -220,17 +227,18 @@ public final class MixClusterTest {
         Assert.assertTrue(result.get());
     }
 
-    @Test(timeout=360*1000L)
+    @Test(timeout = 360 * 1000L)
     public void testMixServerLaunchFailure() throws Exception {
-        final String[] options = { "--jar", appJar, "--num_containers", "1",
-                "--master_memory", "128", "--master_vcores", "1", "--container_memory", "128",
-                "--container_vcores", "1", "--num_retries", "4" };
+        final String[] options = {"--jar", appJar, "--num_containers", "1", "--master_memory",
+                "128", "--master_vcores", "1", "--container_memory", "128", "--container_vcores",
+                "1", "--num_retries", "4"};
 
         Future<Boolean> result = startMixCluster(RetryDeadMixServerApplicationMaster.class, options);
 
         // Must be finished with failure status
         Assert.assertFalse(result.get());
-        Assert.assertEquals("Total failed count for counters:5", mixClusterRunner.getApplicationMasterDiagnostics());
+        Assert.assertEquals("Total failed count for counters:5",
+            mixClusterRunner.getApplicationMasterDiagnostics());
     }
 
     @ChannelHandler.Sharable
@@ -250,22 +258,23 @@ public final class MixClusterTest {
 
     private int verifyContainerLog(String expectedWord) {
         int numOfWords = 0;
-        for(int i = 0; i < numNodeManager; i++) {
+        for (int i = 0; i < numNodeManager; i++) {
             Configuration config = yarnCluster.getNodeManager(i).getConfig();
-            String logDirs = config.get(YarnConfiguration.NM_LOG_DIRS, YarnConfiguration.DEFAULT_NM_LOG_DIRS);
+            String logDirs = config.get(YarnConfiguration.NM_LOG_DIRS,
+                YarnConfiguration.DEFAULT_NM_LOG_DIRS);
             File logDir = new File(logDirs);
             File[] logFiles = logDir.listFiles();
             logger.info("NodeManager LogDir:" + logDirs);
-            for(File logs : logFiles) {
-                for(File dir : logs.listFiles()) {
-                    for(File output : dir.listFiles()) {
-                        if(output.getName().trim().contains("stderr")) {
+            for (File logs : logFiles) {
+                for (File dir : logs.listFiles()) {
+                    for (File output : dir.listFiles()) {
+                        if (output.getName().trim().contains("stderr")) {
                             BufferedReader br = null;
                             try {
                                 String sCurrentLine;
                                 br = new BufferedReader(new FileReader(output));
-                                while((sCurrentLine = br.readLine()) != null) {
-                                    if(sCurrentLine.contains(expectedWord)) {
+                                while ((sCurrentLine = br.readLine()) != null) {
+                                    if (sCurrentLine.contains(expectedWord)) {
                                         numOfWords++;
                                     }
                                 }
