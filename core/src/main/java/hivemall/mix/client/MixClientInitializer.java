@@ -25,12 +25,19 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslContext;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 public final class MixClientInitializer extends ChannelInitializer<SocketChannel> {
 
+    @Nonnull
     private final MixClientHandler responseHandler;
+    @Nullable
     private final SslContext sslCtx;
 
-    public MixClientInitializer(MixClientHandler msgHandler, SslContext sslCtx) {
+    public MixClientInitializer(@CheckForNull MixClientHandler msgHandler,
+            @Nullable SslContext sslCtx) {
         if (msgHandler == null) {
             throw new IllegalArgumentException();
         }
